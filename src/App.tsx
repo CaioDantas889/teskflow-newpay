@@ -214,18 +214,26 @@ export default function App() {
   const cancelTask = useCallback((taskId: string) => {
     const now = Date.now();
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              status: "cancelled" as TaskStatus,
-              events: [
-                ...t.events,
-                { id: genId(), type: "cancelled", timestamp: now, by: "Administrador" },
-              ],
-            }
-          : t
-      )
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        // Congela o tempo trabalhado até agora, exatamente como pausar/concluir,
+        // para o cronômetro parar de fato ao cancelar a tarefa.
+        const extra =
+          t.status === "in_progress" && t.startedAt
+            ? Math.floor((now - t.startedAt) / 1000)
+            : 0;
+        return {
+          ...t,
+          status: "cancelled" as TaskStatus,
+          startedAt: undefined,
+          pausedAt: undefined,
+          accumulatedSeconds: t.accumulatedSeconds + extra,
+          events: [
+            ...t.events,
+            { id: genId(), type: "cancelled", timestamp: now, by: "Administrador" },
+          ],
+        };
+      })
     );
   }, []);
 
@@ -237,7 +245,9 @@ export default function App() {
     const now = Date.now();
     setTasks((prev) => prev.map((t) => {
       if (t.id !== taskId) return t;
-      const nextStatus: TaskStatus = t.status === "overdue" ? "pending" : t.status;
+      // Reagendar uma tarefa atrasada ou cancelada a devolve para "pendente".
+      const nextStatus: TaskStatus =
+        t.status === "overdue" || t.status === "cancelled" ? "pending" : t.status;
       return {
         ...t,
         deadline,
@@ -345,34 +355,33 @@ export default function App() {
 
         {/* Stats */}
         <nav className="flex-1 p-3 space-y-1">
-          <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest px-2 pb-1 pt-1">
-            Resumo
-          </p>
-          {[
-            { label: "Total", value: tasks.length, color: "text-foreground" },
-            { label: "Em andamento", value: tasks.filter((t) => t.status === "in_progress").length, color: "text-blue-400" },
-            { label: "Atrasadas", value: tasks.filter((t) => t.status === "overdue").length, color: "text-red-400" },
-            { label: "Concluídas", value: tasks.filter((t) => t.status === "completed").length, color: "text-emerald-400" },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center justify-between px-2 py-1">
-              <span className="text-xs text-muted-foreground font-mono">{item.label}</span>
-              <span className={`text-xs font-mono font-semibold tabular-nums ${item.color}`}>{item.value}</span>
-            </div>
-          ))}
+          <div className="grid grid-cols-2 gap-1.5 px-1 pb-2">
+            {[
+              { label: "Total", value: tasks.length, color: "text-foreground" },
+              { label: "Ativas", value: tasks.filter((t) => t.status === "in_progress").length, color: "text-blue-400" },
+              { label: "Atrasadas", value: tasks.filter((t) => t.status === "overdue").length, color: "text-red-400" },
+              { label: "Concluídas", value: tasks.filter((t) => t.status === "completed").length, color: "text-emerald-400" },
+            ].map((item) => (
+              <div key={item.label} className="border border-border rounded-sm px-2 py-1.5">
+                <p className={`text-sm font-mono font-semibold tabular-nums ${item.color}`}>{item.value}</p>
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+              </div>
+            ))}
+          </div>
 
           {/* Employee quick-view (admin only) */}
           {session.role === "admin" && (
             <>
-              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest px-2 pb-1 pt-4">
+              <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest px-2 pb-1 pt-2">
                 Equipe
               </p>
-              {employees.map((emp) => {
-                const empTasks = tasks.filter((t) => t.assigneeIds.includes(emp.id));
-                const active = empTasks.find((t) => t.status === "in_progress");
-                const overdue = empTasks.filter((t) => t.status === "overdue").length;
-                return (
-                  <div key={emp.id} className="flex items-center gap-2 px-2 py-1.5">
-                    <div className="relative flex-shrink-0">
+              <div className="flex flex-wrap gap-2 px-2">
+                {employees.map((emp) => {
+                  const empTasks = tasks.filter((t) => t.assigneeIds.includes(emp.id));
+                  const active = empTasks.find((t) => t.status === "in_progress");
+                  const overdue = empTasks.filter((t) => t.status === "overdue").length;
+                  return (
+                    <div key={emp.id} className="relative flex-shrink-0" title={emp.name}>
                       <Avatar initials={emp.avatar} size="sm" />
                       {active && (
                         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-400 border border-card timer-running" />
@@ -381,15 +390,9 @@ export default function App() {
                         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-400 border border-card" />
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{emp.name}</p>
-                    </div>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {empTasks.filter((t) => t.status !== "completed" && t.status !== "cancelled").length}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </>
           )}
         </nav>

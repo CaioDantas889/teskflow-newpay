@@ -56,16 +56,12 @@ export default function TaskCard({
           )}
         </div>
 
-        {/* Badges */}
+        {/* Badge */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge className={`${pCfg.color} ${pCfg.bg} ${pCfg.border}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot}`} />
-            {pCfg.label}
-          </Badge>
           <Badge className={`${sCfg.color} ${sCfg.bg} ${sCfg.border}`}>
             {sCfg.label}
           </Badge>
-          {task.tags.slice(0, 2).map((tag) => (
+          {task.tags.slice(0, 1).map((tag) => (
             <span key={tag} className="text-xs text-muted-foreground font-mono">
               #{tag}
             </span>
