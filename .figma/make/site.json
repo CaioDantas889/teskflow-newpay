@@ -1,0 +1,10 @@
+{
+  "description": "Streamline task management with real-time tracking and notifications for administrators and employees, enhancing productivity and collaboration.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
