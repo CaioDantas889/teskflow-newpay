@@ -12,6 +12,8 @@ interface TaskDetailProps {
   onAddComment: (taskId: string, text: string) => void;
   currentUserId?: string;
   currentUserName?: string;
+  /** Quando informado, mostra o botão de editar no cabeçalho. */
+  onEdit?: () => void;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -22,10 +24,11 @@ const EVENT_LABELS: Record<string, string> = {
   completed: "Tarefa concluída",
   reassigned: "Tarefa reatribuída",
   commented: "Comentário adicionado",
+  edited: "Atividade editada",
   cancelled: "Tarefa cancelada",
 };
 
-export default function TaskDetail({ task, employees, onClose, onAddComment, currentUserId = "e1", currentUserName = "Ana Oliveira" }: TaskDetailProps) {
+export default function TaskDetail({ task, employees, onClose, onAddComment, currentUserId = "e1", currentUserName = "Ana Oliveira", onEdit }: TaskDetailProps) {
   const [comment, setComment] = useState("");
   const pCfg = PRIORITY_CONFIG[task.priority];
   const sCfg = STATUS_CONFIG[task.status];
@@ -58,12 +61,22 @@ export default function TaskDetail({ task, employees, onClose, onAddComment, cur
             #{task.id} · Criado {formatRelative(task.createdAt)} por {task.createdByName}
           </p>
         </div>
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none px-1"
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="px-2 py-1 text-[11px] font-mono rounded border border-border text-muted-foreground hover:text-foreground hover:border-slate-600 transition-colors"
+            >
+              ✎ Editar
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none px-1"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">

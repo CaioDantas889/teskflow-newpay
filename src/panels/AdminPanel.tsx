@@ -3,12 +3,13 @@ import type { Task, Employee, Priority, UserAccount, NewTaskInput } from "../typ
 import { PRIORITY_CONFIG } from "../utils";
 import KanbanBoard from "../components/KanbanBoard";
 import TaskDetail from "../components/TaskDetail";
-import CreateTaskModal from "../components/CreateTaskModal";
+import TaskFormModal from "../components/TaskFormModal";
 
 interface AdminPanelProps {
   tasks: Task[];
   employees: Employee[];
   onCreateTask: (t: NewTaskInput) => void;
+  onUpdateTask: (taskId: string, t: NewTaskInput) => void;
   onAddComment: (taskId: string, text: string) => void;
   onCancelTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
@@ -24,6 +25,7 @@ export default function AdminPanel({
   tasks,
   employees,
   onCreateTask,
+  onUpdateTask,
   onAddComment,
   onCancelTask,
   onDeleteTask,
@@ -46,6 +48,7 @@ export default function AdminPanel({
   const [userError, setUserError] = useState("");
   const [creatingUser, setCreatingUser] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState("");
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const selectedTask = tasks.find((t) => t.id === selectedId);
 
@@ -53,7 +56,13 @@ export default function AdminPanel({
     return tasks.filter((t) => {
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterEmployee !== "all" && !t.assigneeIds.includes(filterEmployee)) return false;
-      if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
+      // A busca cobre título e tags — "#bug" e "bug" encontram a mesma coisa.
+      const term = search.trim().toLowerCase().replace(/^#/, "");
+      if (term) {
+        const inTitle = t.title.toLowerCase().includes(term);
+        const inTags = t.tags.some((tag) => tag.toLowerCase().includes(term));
+        if (!inTitle && !inTags) return false;
+      }
       return true;
     });
   }, [tasks, filterPriority, filterEmployee, search]);
@@ -89,7 +98,7 @@ export default function AdminPanel({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar atividade..."
+          placeholder="Buscar por título ou #tag..."
           className="w-64 bg-secondary border border-border rounded px-2.5 py-1 text-[11px] focus:outline-none focus:border-blue-500/50 placeholder:text-muted-foreground"
         />
         <select
@@ -153,6 +162,7 @@ export default function AdminPanel({
                 onClose={() => setSelectedId(null)}
                 onAddComment={onAddComment}
                 currentUserName="Administrador"
+                onEdit={() => setEditing(selectedTask)}
               />
             </div>
 
@@ -332,11 +342,21 @@ export default function AdminPanel({
       )}
 
       {showCreate && (
-        <CreateTaskModal
+        <TaskFormModal
           employees={employees}
           creatorName="Administrador"
           onClose={() => setShowCreate(false)}
-          onCreate={onCreateTask}
+          onSubmit={onCreateTask}
+        />
+      )}
+
+      {editing && (
+        <TaskFormModal
+          employees={employees}
+          creatorName="Administrador"
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(data) => onUpdateTask(editing.id, data)}
         />
       )}
     </div>

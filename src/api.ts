@@ -106,6 +106,9 @@ export const api = {
   completeTask: (id: string) => request<Task>(`/tasks/${id}/complete`, { method: "POST" }),
   cancelTask: (id: string) => request<Task>(`/tasks/${id}/cancel`, { method: "POST" }),
 
+  updateTask: (id: string, data: NewTaskInput) =>
+    request<Task>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
   rescheduleTask: (id: string, deadline: number) =>
     request<Task>(`/tasks/${id}/deadline`, { method: "PATCH", body: JSON.stringify({ deadline }) }),
 

@@ -4,7 +4,7 @@ import { PRIORITY_CONFIG } from "../utils";
 import KanbanBoard from "../components/KanbanBoard";
 import TaskDetail from "../components/TaskDetail";
 import TaskTimer from "../components/TaskTimer";
-import CreateTaskModal from "../components/CreateTaskModal";
+import TaskFormModal from "../components/TaskFormModal";
 
 interface EmployeePanelProps {
   currentEmployee: Employee;
@@ -15,6 +15,7 @@ interface EmployeePanelProps {
   onCompleteTask: (taskId: string) => void;
   onAddComment: (taskId: string, text: string) => void;
   onCreateTask: (task: NewTaskInput) => void;
+  onUpdateTask: (taskId: string, task: NewTaskInput) => void;
 }
 
 export default function EmployeePanel({
@@ -26,12 +27,14 @@ export default function EmployeePanel({
   onCompleteTask,
   onAddComment,
   onCreateTask,
+  onUpdateTask,
 }: EmployeePanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<Priority | "all">("all");
   const [showConfirm, setShowConfirm] = useState<{ taskId: string } | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [onlyOwn, setOnlyOwn] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
 
   const myTasks = useMemo(
     () => tasks.filter((t) => t.assigneeIds.includes(currentEmployee.id)),
@@ -164,19 +167,35 @@ export default function EmployeePanel({
               onAddComment={onAddComment}
               currentUserId={currentEmployee.id}
               currentUserName={currentEmployee.name}
+              onEdit={
+                selectedTask.createdById === currentEmployee.id
+                  ? () => setEditing(selectedTask)
+                  : undefined
+              }
             />
           </aside>
         </>
       )}
 
       {showCreate && (
-        <CreateTaskModal
+        <TaskFormModal
           employees={employees}
           creatorName={currentEmployee.name}
           lockedAssignee={currentEmployee}
           heading="Nova Atividade"
           onClose={() => setShowCreate(false)}
-          onCreate={onCreateTask}
+          onSubmit={onCreateTask}
+        />
+      )}
+
+      {editing && (
+        <TaskFormModal
+          employees={employees}
+          creatorName={currentEmployee.name}
+          lockedAssignee={currentEmployee}
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={(data) => onUpdateTask(editing.id, data)}
         />
       )}
 

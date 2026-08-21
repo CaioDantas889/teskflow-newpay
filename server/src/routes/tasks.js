@@ -190,6 +190,88 @@ router.post("/:id/cancel", requireAdmin, async (req, res) => {
   res.json(updated);
 });
 
+/**
+ * Editar a atividade. O admin edita qualquer uma; o funcionário edita apenas
+ * as que ele mesmo criou, e sem trocar os responsáveis.
+ */
+router.patch("/:id", async (req, res) => {
+  const task = await findTask(req.params.id);
+  if (!task) return res.status(404).json({ error: "Atividade não encontrada." });
+
+  const isAdmin = req.session.user.role === "admin";
+  const isOwner = req.session.employee && task.createdById === req.session.employee.id;
+  if (!isAdmin && !isOwner) {
+    return res.status(403).json({ error: "Você só pode editar atividades criadas por você." });
+  }
+
+  const {
+    title = task.title,
+    description = task.description,
+    priority = task.priority,
+    estimatedMinutes = task.estimatedMinutes,
+    deadline = task.deadline,
+    tags = task.tags,
+  } = req.body ?? {};
+
+  if (!String(title).trim()) return res.status(400).json({ error: "Título obrigatório." });
+  if (String(title).length > 120) return res.status(400).json({ error: "Título tem no máximo 120 caracteres." });
+  if (!PRIORITIES.includes(priority)) return res.status(400).json({ error: "Prioridade inválida." });
+  if (!deadline || Number.isNaN(Number(deadline))) return res.status(400).json({ error: "Prazo inválido." });
+
+  // Trocar responsáveis é privilégio do admin.
+  let assigneeIds = null;
+  if (isAdmin && Array.isArray(req.body?.assigneeIds)) {
+    assigneeIds = [...new Set(req.body.assigneeIds)];
+    if (assigneeIds.length === 0) {
+      return res.status(400).json({ error: "Selecione ao menos um responsável." });
+    }
+    const known = await query(`select id from employees where id = any($1::text[])`, [assigneeIds]);
+    if (known.rows.length !== assigneeIds.length) {
+      return res.status(400).json({ error: "Responsável inexistente." });
+    }
+  }
+
+  const updated = await withTransaction(async (client) => {
+    await client.query(
+      `update tasks
+          set title = $2,
+              description = $3,
+              priority = $4,
+              estimated_minutes = $5,
+              deadline = to_timestamp($6 / 1000.0),
+              tags = $7,
+              status = case when status in ('overdue', 'cancelled') and to_timestamp($6 / 1000.0) > now()
+                            then 'pending' else status end
+        where id = $1`,
+      [
+        task.id,
+        String(title).trim(),
+        String(description).trim(),
+        priority,
+        Number(estimatedMinutes) || 60,
+        Number(deadline),
+        tags,
+      ]
+    );
+
+    if (assigneeIds) {
+      await client.query(`delete from task_assignees where task_id = $1`, [task.id]);
+      for (const employeeId of assigneeIds) {
+        await client.query(`insert into task_assignees (task_id, employee_id) values ($1, $2)`, [
+          task.id,
+          employeeId,
+        ]);
+      }
+    }
+
+    const who = actor(req);
+    await addEvent(client, task.id, "edited", who.name, "Detalhes da atividade atualizados");
+    return findTask(task.id, client);
+  });
+
+  res.json(updated);
+});
+
 /** Reagendar: atividade atrasada ou cancelada volta a ficar pendente. */
 router.patch("/:id/deadline", requireAdmin, async (req, res) => {
   const { deadline } = req.body ?? {};

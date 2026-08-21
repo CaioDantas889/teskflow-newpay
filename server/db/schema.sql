@@ -66,8 +66,8 @@ create table if not exists task_events (
   id           text        primary key,
   task_id      text        not null references tasks (id) on delete cascade,
   type         text        not null check (type in (
-                 'created', 'started', 'paused', 'resumed',
-                 'completed', 'reassigned', 'commented', 'cancelled')),
+                 'created', 'started', 'paused', 'resumed', 'completed',
+                 'reassigned', 'commented', 'cancelled', 'edited')),
   occurred_at  timestamptz not null default now(),
   by_name      text        not null,
   note         text

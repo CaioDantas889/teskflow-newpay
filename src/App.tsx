@@ -119,6 +119,11 @@ export default function App() {
   const completeTask = useCallback((taskId: string) => run(async () => applyTask(await api.completeTask(taskId))), [run, applyTask]);
   const cancelTask = useCallback((taskId: string) => run(async () => applyTask(await api.cancelTask(taskId))), [run, applyTask]);
 
+  const updateTask = useCallback(
+    (taskId: string, data: NewTaskInput) => run(async () => applyTask(await api.updateTask(taskId, data))),
+    [run, applyTask]
+  );
+
   const rescheduleTask = useCallback(
     (taskId: string, deadline: number) => run(async () => applyTask(await api.rescheduleTask(taskId, deadline))),
     [run, applyTask]
@@ -334,6 +339,7 @@ npm run dev`}
               users={users}
               onCreateUser={createUser}
               onCreateTask={createTask}
+              onUpdateTask={updateTask}
               onAddComment={addComment}
               onCancelTask={cancelTask}
               onDeleteTask={deleteTask}
@@ -346,6 +352,7 @@ npm run dev`}
               tasks={tasks}
               employees={employees}
               onCreateTask={createTask}
+              onUpdateTask={updateTask}
               onStartTask={startTask}
               onPauseTask={pauseTask}
               onCompleteTask={completeTask}
