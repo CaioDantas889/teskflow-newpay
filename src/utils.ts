@@ -45,14 +45,24 @@ export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; b
   critical: { label: "Crítica", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30", dot: "bg-red-400" },
 };
 
-export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string; border: string }> = {
-  pending: { label: "Pendente", color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/30" },
-  in_progress: { label: "Em Andamento", color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/30" },
-  paused: { label: "Pausada", color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30" },
-  completed: { label: "Concluída", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30" },
-  overdue: { label: "Atrasada", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30" },
-  cancelled: { label: "Cancelada", color: "text-slate-500", bg: "bg-slate-500/10", border: "border-slate-500/30" },
+export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string; border: string; dot: string }> = {
+  pending: { label: "Pendente", color: "text-slate-300", bg: "bg-slate-400/10", border: "border-slate-400/30", dot: "bg-slate-400" },
+  in_progress: { label: "Em Andamento", color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/30", dot: "bg-blue-400" },
+  paused: { label: "Pausada", color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/30", dot: "bg-amber-400" },
+  completed: { label: "Concluída", color: "text-emerald-400", bg: "bg-emerald-400/10", border: "border-emerald-400/30", dot: "bg-emerald-400" },
+  overdue: { label: "Atrasada", color: "text-red-400", bg: "bg-red-400/10", border: "border-red-400/30", dot: "bg-red-400" },
+  cancelled: { label: "Cancelada", color: "text-slate-500", bg: "bg-slate-500/10", border: "border-slate-500/30", dot: "bg-slate-600" },
 };
+
+/** Ordem das colunas do quadro, da entrada até o fim. */
+export const BOARD_COLUMNS: TaskStatus[] = [
+  "pending",
+  "in_progress",
+  "paused",
+  "overdue",
+  "completed",
+  "cancelled",
+];
 
 export function getElapsedSeconds(task: {
   status: TaskStatus;

@@ -221,23 +221,23 @@ npm run dev`}
   return (
     <div className="flex h-full bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="w-56 flex-shrink-0 border-r border-border bg-card flex flex-col">
+      <aside className="w-52 flex-shrink-0 border-r border-border bg-column flex flex-col">
         {/* Logo */}
         <div className="px-4 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-600 rounded-sm flex items-center justify-center">
+            <div className="w-6 h-6 bg-blue-600 rounded-md flex items-center justify-center">
               <span className="text-white font-bold text-xs font-mono">T</span>
             </div>
-            <span className="text-sm font-semibold tracking-wide">TaskFlow</span>
+            <span className="text-[13px] font-semibold tracking-wide">TaskFlow</span>
           </div>
-          <p className="text-xs text-muted-foreground font-mono mt-0.5">gestão de tarefas</p>
+          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">gestão de atividades</p>
         </div>
 
         {/* Session info */}
         <div className="px-4 py-3 border-b border-border">
           {isAdmin || !employee ? (
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-sm bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
+              <div className="w-7 h-7 rounded-md bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
                 <span className="text-blue-400 font-mono text-xs">⊞</span>
               </div>
               <div>
@@ -265,7 +265,7 @@ npm run dev`}
               { label: "Atrasadas", value: tasks.filter((t) => t.status === "overdue").length, color: "text-red-400" },
               { label: "Concluídas", value: tasks.filter((t) => t.status === "completed").length, color: "text-emerald-400" },
             ].map((item) => (
-              <div key={item.label} className="border border-border rounded-sm px-2 py-1.5">
+              <div key={item.label} className="border border-border rounded-md bg-card px-2 py-1.5">
                 <p className={`text-sm font-mono font-semibold tabular-nums ${item.color}`}>{item.value}</p>
                 <p className="text-xs text-muted-foreground">{item.label}</p>
               </div>
@@ -304,7 +304,7 @@ npm run dev`}
         <div className="p-3 border-t border-border">
           <button
             onClick={logout}
-            className="w-full flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded-sm transition-colors font-mono"
+            className="w-full flex items-center gap-2 px-2.5 py-2 text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors font-mono"
           >
             <span>←</span>
             <span>Sair</span>

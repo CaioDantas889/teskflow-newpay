@@ -16,6 +16,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
+  --color-column: var(--column);
   --color-ring: var(--ring);
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
@@ -25,21 +26,23 @@
 }
 
 :root {
-  --background: #0a0c0f;
-  --foreground: #e8eaed;
-  --card: #111318;
-  --card-foreground: #e8eaed;
+  --background: #05070a;
+  --foreground: #e6e9ef;
+  --card: #0c1015;
+  --card-foreground: #e6e9ef;
   --primary: #3b82f6;
   --primary-foreground: #ffffff;
-  --secondary: #1c2030;
-  --secondary-foreground: #a0a8b8;
-  --muted: #161b27;
-  --muted-foreground: #6b7280;
+  --secondary: #12171f;
+  --secondary-foreground: #9aa3b2;
+  --muted: #0e1218;
+  --muted-foreground: #67707f;
   --accent: #22d3ee;
-  --accent-foreground: #0a0c0f;
-  --border: #1e2535;
+  --accent-foreground: #05070a;
+  --border: #1a212c;
   --ring: #3b82f6;
-  --radius: 4px;
+  --radius: 6px;
+  /* Fundo das colunas do quadro, um degrau acima do fundo geral. */
+  --column: #090c11;
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-jetbrains: 'JetBrains Mono', monospace;
 }
@@ -76,7 +79,7 @@ body {
 }
 *:hover::-webkit-scrollbar-thumb {
   opacity: 1;
-  background: #2e3a4e;
+  background: #26303f;
 }
 
 /* Animations */
