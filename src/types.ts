@@ -8,10 +8,10 @@ export interface Employee {
   avatar: string;
 }
 
+/** Conta de acesso vinda da API — o hash da senha nunca sai do servidor. */
 export interface UserAccount {
   id: string;
   username: string;
-  passwordHash: string;
   role: "admin" | "employee";
   employeeId?: string;
   name: string;
@@ -43,6 +43,9 @@ export interface Task {
   estimatedMinutes: number;
   deadline: number;
   createdAt: number;
+  /** Quem criou a atividade: "admin" ou o id do funcionário. */
+  createdById: string;
+  createdByName: string;
   startedAt?: number;
   completedAt?: number;
   pausedAt?: number;
@@ -51,3 +54,9 @@ export interface Task {
   comments: Comment[];
   tags: string[];
 }
+
+/** Campos preenchidos no formulário de criação; o restante é gerado pelo App. */
+export type NewTaskInput = Omit<
+  Task,
+  "id" | "events" | "comments" | "accumulatedSeconds" | "status" | "createdAt" | "createdById" | "createdByName"
+>;

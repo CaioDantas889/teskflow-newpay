@@ -1,21 +1,30 @@
 import { useState } from "react";
-import type { Employee, Task, Priority } from "../types";
+import type { Employee, Priority, NewTaskInput } from "../types";
 import { PRIORITY_CONFIG } from "../utils";
+import Avatar from "./Avatar";
 
 interface CreateTaskModalProps {
   employees: Employee[];
   onClose: () => void;
-  onCreate: (task: Omit<Task, "id" | "events" | "comments" | "accumulatedSeconds" | "status" | "createdAt">) => void;
+  onCreate: (task: NewTaskInput) => void;
+  /** Nome de quem está criando — fica registrado na atividade. */
+  creatorName: string;
+  /**
+   * Quando informado, a atividade é sempre do próprio funcionário:
+   * o seletor de responsáveis vira somente leitura.
+   */
+  lockedAssignee?: Employee;
+  heading?: string;
 }
 
-export default function CreateTaskModal({ employees, onClose, onCreate }: CreateTaskModalProps) {
+export default function CreateTaskModal({ employees, onClose, onCreate, creatorName, lockedAssignee, heading }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [estimatedMinutes, setEstimatedMinutes] = useState(60);
   const [deadlineDate, setDeadlineDate] = useState("");
   const [deadlineTime, setDeadlineTime] = useState("18:00");
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(lockedAssignee ? [lockedAssignee.id] : []);
   const [tags, setTags] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -29,7 +38,7 @@ export default function CreateTaskModal({ employees, onClose, onCreate }: Create
     const e: Record<string, string> = {};
     if (!title.trim()) e.title = "Título obrigatório";
     if (title.length > 120) e.title = "Máximo 120 caracteres";
-    if (assigneeIds.length === 0) e.assignees = "Selecione ao menos um responsável";
+    if (!lockedAssignee && assigneeIds.length === 0) e.assignees = "Selecione ao menos um responsável";
     if (!deadlineDate) e.deadline = "Prazo obrigatório";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -58,7 +67,10 @@ export default function CreateTaskModal({ employees, onClose, onCreate }: Create
       <div className="relative bg-card border border-border rounded-sm w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-in shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-card z-10">
-          <h3 className="text-sm font-semibold">Nova Tarefa</h3>
+          <div>
+            <h3 className="text-sm font-semibold">{heading ?? "Nova Tarefa"}</h3>
+            <p className="text-xs text-muted-foreground font-mono mt-0.5">criada por {creatorName}</p>
+          </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl leading-none">×</button>
         </div>
 
@@ -149,6 +161,24 @@ export default function CreateTaskModal({ employees, onClose, onCreate }: Create
           </div>
 
           {/* Assignees */}
+          {lockedAssignee ? (
+            <div>
+              <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider mb-1.5">
+                Responsável
+              </label>
+              <div className="flex items-center gap-3 px-3 py-2 rounded-sm border border-blue-500/50 bg-blue-500/10">
+                <Avatar initials={lockedAssignee.avatar} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{lockedAssignee.name}</p>
+                  <p className="text-xs text-muted-foreground">{lockedAssignee.role}</p>
+                </div>
+                <span className="text-xs font-mono text-blue-400 ml-auto flex-shrink-0">você</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Atividades criadas por você ficam atribuídas a você mesmo.
+              </p>
+            </div>
+          ) : (
           <div>
             <label className="block text-xs font-mono text-muted-foreground uppercase tracking-wider mb-1.5">
               Responsáveis <span className="text-red-400">*</span>
@@ -176,6 +206,7 @@ export default function CreateTaskModal({ employees, onClose, onCreate }: Create
             </div>
             {errors.assignees && <span className="text-xs text-red-400 mt-1 block">{errors.assignees}</span>}
           </div>
+          )}
 
           {/* Tags */}
           <div>
@@ -203,7 +234,7 @@ export default function CreateTaskModal({ employees, onClose, onCreate }: Create
             onClick={handleSubmit}
             className="flex-1 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-sm transition-colors"
           >
-            Criar Tarefa
+            {lockedAssignee ? "Criar Atividade" : "Criar Tarefa"}
           </button>
         </div>
       </div>

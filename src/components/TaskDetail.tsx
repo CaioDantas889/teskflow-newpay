@@ -31,6 +31,9 @@ export default function TaskDetail({ task, employees, onClose, onAddComment, cur
   const sCfg = STATUS_CONFIG[task.status];
   const assignees = employees.filter((e) => task.assigneeIds.includes(e.id));
   const elapsed = getElapsedSeconds(task);
+  const creatorInitials = task.createdByName.split(/\s+/).filter(Boolean).map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+  // Atividade que o próprio responsável criou para si mesmo.
+  const isSelfCreated = task.assigneeIds.includes(task.createdById);
 
   function handleComment() {
     const trimmed = comment.trim();
@@ -52,7 +55,7 @@ export default function TaskDetail({ task, employees, onClose, onAddComment, cur
           </div>
           <h2 className="text-base font-semibold leading-snug">{task.title}</h2>
           <p className="text-xs text-muted-foreground font-mono mt-1">
-            #{task.id} · Criado {formatRelative(task.createdAt)}
+            #{task.id} · Criado {formatRelative(task.createdAt)} por {task.createdByName}
           </p>
         </div>
         <button
@@ -111,6 +114,18 @@ export default function TaskDetail({ task, employees, onClose, onAddComment, cur
             </div>
           </div>
           <div className="space-y-3">
+            <div>
+              <p className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">Criado por</p>
+              <div className="flex items-center gap-2">
+                <Avatar initials={creatorInitials} size="sm" />
+                <div>
+                  <p className="text-xs font-medium">{task.createdByName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {isSelfCreated ? "criou para si mesmo" : formatDateTime(task.createdAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div>
               <p className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-wider">Prazo</p>
               <p className="text-sm font-mono">{formatDateTime(task.deadline)}</p>

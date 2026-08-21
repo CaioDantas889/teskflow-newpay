@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
-import type { Task, Employee, TaskStatus, Priority } from "../types";
+import type { Task, Employee, TaskStatus, Priority, NewTaskInput } from "../types";
 import { PRIORITY_CONFIG, STATUS_CONFIG } from "../utils";
 import TaskCard from "../components/TaskCard";
 import TaskDetail from "../components/TaskDetail";
 import TaskTimer from "../components/TaskTimer";
+import CreateTaskModal from "../components/CreateTaskModal";
 
 interface EmployeePanelProps {
   currentEmployee: Employee;
@@ -13,6 +14,7 @@ interface EmployeePanelProps {
   onPauseTask: (taskId: string) => void;
   onCompleteTask: (taskId: string) => void;
   onAddComment: (taskId: string, text: string) => void;
+  onCreateTask: (task: NewTaskInput) => void;
 }
 
 const FILTER_STATUSES: (TaskStatus | "all")[] = ["all", "pending", "in_progress", "paused", "completed", "overdue"];
@@ -25,11 +27,14 @@ export default function EmployeePanel({
   onPauseTask,
   onCompleteTask,
   onAddComment,
+  onCreateTask,
 }: EmployeePanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
   const [filterPriority, setFilterPriority] = useState<Priority | "all">("all");
   const [showConfirm, setShowConfirm] = useState<{ taskId: string; action: "complete" } | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [onlyOwn, setOnlyOwn] = useState(false);
 
   const myTasks = useMemo(
     () => tasks.filter((t) => t.assigneeIds.includes(currentEmployee.id)),
@@ -40,13 +45,15 @@ export default function EmployeePanel({
     return myTasks.filter((t) => {
       if (filterStatus !== "all" && t.status !== filterStatus) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+      if (onlyOwn && t.createdById !== currentEmployee.id) return false;
       return true;
     });
-  }, [myTasks, filterStatus, filterPriority]);
+  }, [myTasks, filterStatus, filterPriority, onlyOwn, currentEmployee.id]);
 
   const selectedTask = tasks.find((t) => t.id === selectedId);
   const activeTask = myTasks.find((t) => t.status === "in_progress");
 
+  const ownCount = myTasks.filter((t) => t.createdById === currentEmployee.id).length;
   const pendingCount = myTasks.filter((t) => t.status === "pending").length;
   const overdueCount = myTasks.filter((t) => t.status === "overdue" || (t.deadline < Date.now() && t.status === "in_progress")).length;
 
@@ -79,6 +86,12 @@ export default function EmployeePanel({
           <span className="text-xs font-mono text-muted-foreground">
             {pendingCount} pendente{pendingCount !== 1 ? "s" : ""}
           </span>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-sm transition-colors"
+          >
+            + Nova Atividade
+          </button>
         </div>
       </div>
 
@@ -133,16 +146,28 @@ export default function EmployeePanel({
                 </button>
               ))}
             </div>
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value as Priority | "all")}
-              className="bg-secondary border border-border rounded-sm px-2 py-1 text-xs focus:outline-none text-foreground"
-            >
-              <option value="all">Todas as prioridades</option>
-              {(["critical", "high", "medium", "low"] as Priority[]).map((p) => (
-                <option key={p} value={p}>{PRIORITY_CONFIG[p].label}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value as Priority | "all")}
+                className="bg-secondary border border-border rounded-sm px-2 py-1 text-xs focus:outline-none text-foreground"
+              >
+                <option value="all">Todas as prioridades</option>
+                {(["critical", "high", "medium", "low"] as Priority[]).map((p) => (
+                  <option key={p} value={p}>{PRIORITY_CONFIG[p].label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => setOnlyOwn((v) => !v)}
+                className={`px-2.5 py-1 text-xs font-mono rounded-sm border transition-colors ${
+                  onlyOwn
+                    ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
+                    : "border-border text-muted-foreground hover:border-slate-500"
+                }`}
+              >
+                Criadas por mim <span className="ml-1 opacity-70">{ownCount}</span>
+              </button>
+            </div>
           </div>
 
           {/* List */}
@@ -191,6 +216,18 @@ export default function EmployeePanel({
           </div>
         )}
       </div>
+
+      {/* Nova atividade própria */}
+      {showCreate && (
+        <CreateTaskModal
+          employees={employees}
+          creatorName={currentEmployee.name}
+          lockedAssignee={currentEmployee}
+          heading="Nova Atividade"
+          onClose={() => setShowCreate(false)}
+          onCreate={onCreateTask}
+        />
+      )}
 
       {/* Confirm dialog */}
       {showConfirm && (

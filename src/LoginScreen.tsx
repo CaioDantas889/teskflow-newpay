@@ -1,13 +1,9 @@
 import { useState } from "react";
-import type { Employee, UserAccount } from "./types";
-
 interface LoginScreenProps {
-  employees: Employee[];
-  users: UserAccount[];
   onLogin: (username: string, password: string) => Promise<string | null>;
 }
 
-export default function LoginScreen({ employees, users, onLogin }: LoginScreenProps) {
+export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

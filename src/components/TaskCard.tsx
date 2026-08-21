@@ -66,6 +66,15 @@ export default function TaskCard({
               #{tag}
             </span>
           ))}
+          {task.assigneeIds.includes(task.createdById) ? (
+            <span className="text-xs font-mono text-blue-400 border border-blue-500/30 bg-blue-500/10 rounded-sm px-1.5 py-0.5">
+              própria
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground font-mono ml-auto truncate">
+              por {task.createdByName}
+            </span>
+          )}
         </div>
 
         {/* Timer */}

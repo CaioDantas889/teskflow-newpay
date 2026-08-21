@@ -21,6 +21,20 @@ This is the canonical project structure. Start with task-relevant files below. O
 - `vite.config.ts` - Vite configuration with React, Tailwind CSS v4, and Figma Make plugins plus the `@` alias for `src`
 - `.mise.toml` - Toolchain versions for Node.js and pnpm
 
+## Backend (PostgreSQL)
+
+Os dados ficam em um banco PostgreSQL, acessado por uma API REST na pasta `server/`.
+O frontend não guarda mais dados: fala com a API por `src/api.ts`.
+
+- `server/db/schema.sql` - tabelas, restrições e índices
+- `server/docker-compose.yml` - container do PostgreSQL 17
+- `server/src/` - API Express (`index.js`, `db.js`, `auth.js`, `routes/`)
+- `server/scripts/seed.js` - equipe, contas e atividades de exemplo
+- `src/api.ts` - cliente HTTP do frontend (URL em `VITE_API_URL`)
+
+Para subir o backend: veja `server/README.md`. Sem ele no ar, o app mostra a
+tela "Servidor indisponível" com as instruções.
+
 ## Dependencies
 
 - Runtime: React 19 and React DOM 19

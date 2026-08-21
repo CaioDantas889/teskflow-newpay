@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import type { Task, Employee, TaskStatus, Priority, UserAccount } from "../types";
+import type { Task, Employee, TaskStatus, Priority, UserAccount, NewTaskInput } from "../types";
 import { STATUS_CONFIG, PRIORITY_CONFIG } from "../utils";
 import TaskCard from "../components/TaskCard";
 import TaskDetail from "../components/TaskDetail";
@@ -8,14 +8,14 @@ import CreateTaskModal from "../components/CreateTaskModal";
 interface AdminPanelProps {
   tasks: Task[];
   employees: Employee[];
-  onCreateTask: (t: Omit<Task, "id" | "events" | "comments" | "accumulatedSeconds" | "status" | "createdAt">) => void;
+  onCreateTask: (t: NewTaskInput) => void;
   onAddComment: (taskId: string, text: string) => void;
   onCancelTask: (taskId: string) => void;
   onDeleteTask: (taskId: string) => void;
   onRescheduleTask: (taskId: string, deadline: number) => void;
   users: UserAccount[];
   onCreateUser: (data: { name: string; role: "admin" | "employee"; username: string; password: string; jobRole?: string }) => Promise<string | null>;
-  onDeleteUser: (userId: string) => string | null;
+  onDeleteUser: (userId: string) => Promise<string | null>;
 }
 
 const STATUSES: TaskStatus[] = ["pending", "in_progress", "paused", "overdue", "completed", "cancelled"];
@@ -286,9 +286,9 @@ export default function AdminPanel({ tasks, employees, onCreateTask, onAddCommen
                     <p className="text-[11px] text-muted-foreground">@{user.username} · {user.role === "admin" ? "Administrador" : "Funcionário"}</p>
                   </div>
                   <button
-                    onClick={() => {
-                      if (!window.confirm(`Remover o usuário ${user.name}? As atividades atribuídas a este funcionário também serão removidas.`)) return;
-                      const error = onDeleteUser(user.id);
+                    onClick={async () => {
+                      if (!window.confirm(`Remover o usuário ${user.name}? As atividades criadas por ele e as que ficariam sem responsável também serão removidas.`)) return;
+                      const error = await onDeleteUser(user.id);
                       if (error) setUserError(error);
                     }}
                     className="flex-shrink-0 px-2.5 py-1 text-[11px] border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-sm"
@@ -305,6 +305,7 @@ export default function AdminPanel({ tasks, employees, onCreateTask, onAddCommen
       {showCreate && (
         <CreateTaskModal
           employees={employees}
+          creatorName="Administrador"
           onClose={() => setShowCreate(false)}
           onCreate={onCreateTask}
         />

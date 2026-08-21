@@ -1,320 +1,223 @@
-import { useState, useCallback } from "react";
-import { EMPLOYEES, INITIAL_TASKS } from "./data";
-import type { Task, Employee, TaskStatus, UserAccount } from "./types";
+import { useState, useCallback, useEffect } from "react";
+import type { Task, Employee, NewTaskInput } from "./types";
+import { api, ApiError, type Account, type Session } from "./api";
 import Avatar from "./components/Avatar";
 import AdminPanel from "./panels/AdminPanel";
 import EmployeePanel from "./panels/EmployeePanel";
 import LoginScreen from "./LoginScreen";
 
-type Session =
-  | { role: "none" }
-  | { role: "admin"; user: UserAccount }
-  | { role: "employee"; employee: Employee; user: UserAccount };
-
-function genId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const data = new TextEncoder().encode(password);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-const DEFAULT_USERS: UserAccount[] = [
-  {
-    id: "u-admin",
-    username: "admin",
-    passwordHash: "3eb3fe66b31e3b4d10fa70b5cad49c7112294af6ae4e476a1c405155d45aa121",
-    role: "admin",
-    name: "Administrador",
-  },
-  ...EMPLOYEES.map((emp) => ({
-    id: `u-${emp.id}`,
-    username: emp.name.toLowerCase().replace(/[^a-z0-9]+/g, "."),
-    passwordHash: "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
-    role: "employee" as const,
-    employeeId: emp.id,
-    name: emp.name,
-  })),
-];
-
 export default function App() {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [employees, setEmployees] = useState<Employee[]>(() => {
-    try {
-      const saved = localStorage.getItem("taskflow-employees-v1");
-      return saved ? JSON.parse(saved) as Employee[] : EMPLOYEES;
-    } catch {
-      return EMPLOYEES;
-    }
-  });
-  const [users, setUsers] = useState<UserAccount[]>(() => {
-    try {
-      const saved = localStorage.getItem("taskflow-users-v1");
-      return saved ? JSON.parse(saved) as UserAccount[] : DEFAULT_USERS;
-    } catch {
-      return DEFAULT_USERS;
-    }
-  });
-  const [session, setSession] = useState<Session>({ role: "none" });
+  const [session, setSession] = useState<Session | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [users, setUsers] = useState<Account[]>([]);
+  const [booting, setBooting] = useState(true);
+  const [offline, setOffline] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const persistUsers = useCallback((next: UserAccount[]) => {
-    setUsers(next);
-    localStorage.setItem("taskflow-users-v1", JSON.stringify(next));
+  /** Traduz a falha em mensagem e derruba a sessão se o token não vale mais. */
+  const report = useCallback((problem: unknown) => {
+    if (problem instanceof ApiError) {
+      // 0 = servidor fora do ar, 503 = servidor de pé mas sem banco.
+      if (problem.status === 0 || problem.status === 503) setOffline(true);
+      if (problem.status === 401) {
+        api.logout();
+        setSession(null);
+      }
+      setError(problem.message);
+      return;
+    }
+    setError("Erro inesperado.");
   }, []);
 
-  const login = useCallback(async (username: string, password: string): Promise<string | null> => {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
-    if (!user) return "Usuário ou senha incorretos.";
-    const hash = await hashPassword(password);
-    if (hash !== user.passwordHash) return "Usuário ou senha incorretos.";
+  const loadData = useCallback(async (current: Session) => {
+    const [taskList, team] = await Promise.all([api.tasks(), api.employees()]);
+    setTasks(taskList);
+    setEmployees(team);
+    // A lista de contas é exclusiva do painel administrativo.
+    setUsers(current.user.role === "admin" ? await api.users() : []);
+    setOffline(false);
+  }, []);
 
-    if (user.role === "admin") {
-      setSession({ role: "admin", user });
-      return null;
-    }
-
-    const employee = employees.find(e => e.id === user.employeeId);
-    if (!employee) return "Esta conta não está vinculada a um funcionário.";
-    setSession({ role: "employee", employee, user });
-    return null;
-  }, [users, employees]);
-
-  const createUser = useCallback(async (data: { name: string; role: "admin" | "employee"; username: string; password: string; jobRole?: string }): Promise<string | null> => {
-    const normalizedUsername = data.username.toLowerCase();
-    if (users.some(u => u.username.toLowerCase() === normalizedUsername)) return "Esse nome de usuário já existe.";
-    const id = genId();
-    const passwordHash = await hashPassword(data.password);
-
-    if (data.role === "admin") {
-      const account: UserAccount = { id, username: normalizedUsername, passwordHash, role: "admin", name: data.name };
-      persistUsers([...users, account]);
-      return null;
-    }
-
-    const employee: Employee = {
-      id: `e${id}`,
-      name: data.name,
-      role: data.jobRole?.trim() || "Funcionário",
-      avatar: data.name.split(/\s+/).filter(Boolean).map(p => p[0]).join("").slice(0, 2).toUpperCase(),
+  // Retoma a sessão salva — é o que mantém o login ao recarregar a página.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const restored = await api.me();
+        if (!active) return;
+        if (restored) {
+          setSession(restored);
+          await loadData(restored);
+        }
+      } catch (problem) {
+        if (active) report(problem);
+      } finally {
+        if (active) setBooting(false);
+      }
+    })();
+    return () => {
+      active = false;
     };
-    const account: UserAccount = {
-      id: `u${id}`,
-      username: normalizedUsername,
-      passwordHash,
-      role: "employee",
-      employeeId: employee.id,
-      name: employee.name,
-    };
-    const nextEmployees = [...employees, employee];
-    setEmployees(nextEmployees);
-    localStorage.setItem("taskflow-employees-v1", JSON.stringify(nextEmployees));
-    persistUsers([...users, account]);
-    return null;
-  }, [users, employees, persistUsers]);
+  }, [loadData, report]);
+
+  /** Executa uma ação na API e mostra o erro na barra do topo, se houver. */
+  const run = useCallback(
+    async (action: () => Promise<void>) => {
+      try {
+        setError(null);
+        await action();
+      } catch (problem) {
+        report(problem);
+      }
+    },
+    [report]
+  );
+
+  const applyTask = useCallback((updated: Task) => {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }, []);
+
+  const login = useCallback(
+    async (username: string, password: string): Promise<string | null> => {
+      try {
+        const next = await api.login(username, password);
+        setSession(next);
+        await loadData(next);
+        return null;
+      } catch (problem) {
+        if (problem instanceof ApiError) {
+          if (problem.status === 0 || problem.status === 503) setOffline(true);
+          return problem.message;
+        }
+        return "Erro inesperado.";
+      }
+    },
+    [loadData]
+  );
+
+  const logout = useCallback(() => {
+    api.logout();
+    setSession(null);
+    setTasks([]);
+    setEmployees([]);
+    setUsers([]);
+    setError(null);
+  }, []);
 
   const createTask = useCallback(
-    (data: Omit<Task, "id" | "events" | "comments" | "accumulatedSeconds" | "status" | "createdAt">) => {
-      const now = Date.now();
-      const task: Task = {
-        ...data,
-        id: `t${genId()}`,
-        status: "pending",
-        accumulatedSeconds: 0,
-        createdAt: now,
-        events: [{ id: genId(), type: "created", timestamp: now, by: "Administrador" }],
-        comments: [],
-      };
-      setTasks((prev) => [task, ...prev]);
-    },
-    []
+    (data: NewTaskInput) =>
+      run(async () => {
+        const created = await api.createTask(data);
+        setTasks((prev) => [created, ...prev]);
+      }),
+    [run]
   );
 
-  const startTask = useCallback(
-    (taskId: string, employeeName: string) => {
-      const now = Date.now();
-      setTasks((prev) =>
-        prev.map((t) => {
-          if (t.id !== taskId) return t;
-          if (t.status === "in_progress") return t;
-          const isPaused = t.status === "paused";
-          const accumulated =
-            isPaused && t.pausedAt && t.startedAt
-              ? t.accumulatedSeconds + Math.floor((t.pausedAt - t.startedAt) / 1000)
-              : t.accumulatedSeconds;
-          return {
-            ...t,
-            status: "in_progress" as TaskStatus,
-            startedAt: now,
-            pausedAt: undefined,
-            accumulatedSeconds: isPaused ? accumulated : t.accumulatedSeconds,
-            events: [
-              ...t.events,
-              {
-                id: genId(),
-                type: isPaused ? "resumed" : "started",
-                timestamp: now,
-                by: employeeName,
-              },
-            ],
-          };
-        })
-      );
-    },
-    []
+  const startTask = useCallback((taskId: string) => run(async () => applyTask(await api.startTask(taskId))), [run, applyTask]);
+  const pauseTask = useCallback((taskId: string) => run(async () => applyTask(await api.pauseTask(taskId))), [run, applyTask]);
+  const completeTask = useCallback((taskId: string) => run(async () => applyTask(await api.completeTask(taskId))), [run, applyTask]);
+  const cancelTask = useCallback((taskId: string) => run(async () => applyTask(await api.cancelTask(taskId))), [run, applyTask]);
+
+  const rescheduleTask = useCallback(
+    (taskId: string, deadline: number) => run(async () => applyTask(await api.rescheduleTask(taskId, deadline))),
+    [run, applyTask]
   );
-
-  const pauseTask = useCallback((taskId: string, employeeName: string) => {
-    const now = Date.now();
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId || t.status !== "in_progress") return t;
-        const extra = t.startedAt ? Math.floor((now - t.startedAt) / 1000) : 0;
-        return {
-          ...t,
-          status: "paused" as TaskStatus,
-          pausedAt: now,
-          accumulatedSeconds: t.accumulatedSeconds + extra,
-          startedAt: undefined,
-          events: [
-            ...t.events,
-            { id: genId(), type: "paused", timestamp: now, by: employeeName },
-          ],
-        };
-      })
-    );
-  }, []);
-
-  const completeTask = useCallback((taskId: string, employeeName: string) => {
-    const now = Date.now();
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        const extra =
-          t.status === "in_progress" && t.startedAt
-            ? Math.floor((now - t.startedAt) / 1000)
-            : 0;
-        return {
-          ...t,
-          status: "completed" as TaskStatus,
-          completedAt: now,
-          startedAt: undefined,
-          pausedAt: undefined,
-          accumulatedSeconds: t.accumulatedSeconds + extra,
-          events: [
-            ...t.events,
-            { id: genId(), type: "completed", timestamp: now, by: employeeName },
-          ],
-        };
-      })
-    );
-  }, []);
-
-  const cancelTask = useCallback((taskId: string) => {
-    const now = Date.now();
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
-        // Congela o tempo trabalhado até agora, exatamente como pausar/concluir,
-        // para o cronômetro parar de fato ao cancelar a tarefa.
-        const extra =
-          t.status === "in_progress" && t.startedAt
-            ? Math.floor((now - t.startedAt) / 1000)
-            : 0;
-        return {
-          ...t,
-          status: "cancelled" as TaskStatus,
-          startedAt: undefined,
-          pausedAt: undefined,
-          accumulatedSeconds: t.accumulatedSeconds + extra,
-          events: [
-            ...t.events,
-            { id: genId(), type: "cancelled", timestamp: now, by: "Administrador" },
-          ],
-        };
-      })
-    );
-  }, []);
-
-  const deleteTask = useCallback((taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId));
-  }, []);
-
-  const rescheduleTask = useCallback((taskId: string, deadline: number) => {
-    const now = Date.now();
-    setTasks((prev) => prev.map((t) => {
-      if (t.id !== taskId) return t;
-      // Reagendar uma tarefa atrasada ou cancelada a devolve para "pendente".
-      const nextStatus: TaskStatus =
-        t.status === "overdue" || t.status === "cancelled" ? "pending" : t.status;
-      return {
-        ...t,
-        deadline,
-        status: nextStatus,
-        events: [...t.events, { id: genId(), type: "reassigned", timestamp: now, by: "Administrador", note: `Prazo reagendado para ${new Date(deadline).toLocaleString("pt-BR")}` }],
-      };
-    }));
-  }, []);
-
-  const deleteUser = useCallback((userId: string): string | null => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return "Usuário não encontrado.";
-    if (user.role === "admin" && users.filter(u => u.role === "admin").length === 1) {
-      return "Não é possível remover o último administrador.";
-    }
-    if (user.role === "employee" && user.employeeId) {
-      setTasks(prev => prev.filter(t => !t.assigneeIds.includes(user.employeeId!)));
-      const nextEmployees = employees.filter(e => e.id !== user.employeeId);
-      setEmployees(nextEmployees);
-      localStorage.setItem("taskflow-employees-v1", JSON.stringify(nextEmployees));
-    }
-    persistUsers(users.filter(u => u.id !== userId));
-    return null;
-  }, [users, employees, persistUsers]);
 
   const addComment = useCallback(
-    (taskId: string, text: string, authorId: string, authorName: string) => {
-      const now = Date.now();
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                comments: [
-                  ...t.comments,
-                  { id: genId(), authorId, authorName, text, timestamp: now },
-                ],
-                events: [
-                  ...t.events,
-                  {
-                    id: genId(),
-                    type: "commented",
-                    timestamp: now,
-                    by: authorName,
-                    note: text.slice(0, 60),
-                  },
-                ],
-              }
-            : t
-        )
-      );
+    (taskId: string, text: string) => run(async () => applyTask(await api.addComment(taskId, text))),
+    [run, applyTask]
+  );
+
+  const deleteTask = useCallback(
+    (taskId: string) =>
+      run(async () => {
+        await api.deleteTask(taskId);
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      }),
+    [run]
+  );
+
+  const createUser = useCallback(
+    async (data: { name: string; role: "admin" | "employee"; username: string; password: string; jobRole?: string }): Promise<string | null> => {
+      try {
+        await api.createUser(data);
+        const [accounts, team] = await Promise.all([api.users(), api.employees()]);
+        setUsers(accounts);
+        setEmployees(team);
+        return null;
+      } catch (problem) {
+        return problem instanceof ApiError ? problem.message : "Erro inesperado.";
+      }
     },
     []
   );
 
-  // ─── Login screen ───────────────────────────────────────────────────────────
-  if (session.role === "none") {
+  const deleteUser = useCallback(
+    async (userId: string): Promise<string | null> => {
+      try {
+        await api.deleteUser(userId);
+        // O banco removeu as atividades do funcionário junto: recarrega tudo.
+        const [accounts, team, taskList] = await Promise.all([api.users(), api.employees(), api.tasks()]);
+        setUsers(accounts);
+        setEmployees(team);
+        setTasks(taskList);
+        return null;
+      } catch (problem) {
+        return problem instanceof ApiError ? problem.message : "Erro inesperado.";
+      }
+    },
+    []
+  );
+
+  // ─── Carregando ─────────────────────────────────────────────────────────────
+  if (booting) {
     return (
-      <LoginScreen
-        employees={employees}
-        users={users}
-        onLogin={login}
-      />
+      <div className="min-h-full flex items-center justify-center bg-background text-muted-foreground">
+        <p className="text-sm font-mono">Carregando...</p>
+      </div>
     );
   }
 
-  // ─── Shell (sidebar + main) ──────────────────────────────────────────────────
+  // ─── Servidor fora do ar ────────────────────────────────────────────────────
+  if (offline && !session) {
+    return (
+      <div className="min-h-full flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md border border-border bg-card rounded-sm p-6 animate-slide-in">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-red-400" />
+            <h1 className="text-sm font-semibold">Servidor indisponível</h1>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            O TaskFlow guarda os dados em um banco PostgreSQL, acessado pela API da pasta{" "}
+            <span className="font-mono text-foreground">server/</span>. Suba os dois e recarregue a página:
+          </p>
+          <pre className="mt-4 bg-secondary border border-border rounded-sm p-3 text-xs font-mono overflow-x-auto">
+{`cd server
+docker compose up -d
+npm install && npm run db:seed
+npm run dev`}
+          </pre>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-sm text-sm font-medium"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Login ──────────────────────────────────────────────────────────────────
+  if (!session) {
+    return <LoginScreen onLogin={login} />;
+  }
+
+  const isAdmin = session.user.role === "admin";
+  const employee = session.employee;
+
+  // ─── Shell (sidebar + main) ─────────────────────────────────────────────────
   return (
     <div className="flex h-full bg-background text-foreground">
       {/* Sidebar */}
@@ -332,22 +235,22 @@ export default function App() {
 
         {/* Session info */}
         <div className="px-4 py-3 border-b border-border">
-          {session.role === "admin" ? (
+          {isAdmin || !employee ? (
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-sm bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
                 <span className="text-blue-400 font-mono text-xs">⊞</span>
               </div>
               <div>
-                <p className="text-xs font-semibold">Administrador</p>
+                <p className="text-xs font-semibold">{session.user.name}</p>
                 <p className="text-xs text-muted-foreground font-mono">acesso total</p>
               </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Avatar initials={(session as { role: "employee"; employee: Employee }).employee.avatar} size="sm" />
+              <Avatar initials={employee.avatar} size="sm" />
               <div>
-                <p className="text-xs font-semibold">{(session as { role: "employee"; employee: Employee }).employee.name}</p>
-                <p className="text-xs text-muted-foreground font-mono">{(session as { role: "employee"; employee: Employee }).employee.role}</p>
+                <p className="text-xs font-semibold">{employee.name}</p>
+                <p className="text-xs text-muted-foreground font-mono">{employee.role}</p>
               </div>
             </div>
           )}
@@ -370,7 +273,7 @@ export default function App() {
           </div>
 
           {/* Employee quick-view (admin only) */}
-          {session.role === "admin" && (
+          {isAdmin && (
             <>
               <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest px-2 pb-1 pt-2">
                 Equipe
@@ -400,54 +303,56 @@ export default function App() {
         {/* Sign out */}
         <div className="p-3 border-t border-border">
           <button
-            onClick={() => setSession({ role: "none" })}
+            onClick={logout}
             className="w-full flex items-center gap-2 px-2.5 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-secondary rounded-sm transition-colors font-mono"
           >
             <span>←</span>
-            <span>Trocar perfil</span>
+            <span>Sair</span>
           </button>
         </div>
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-hidden">
-        {session.role === "admin" ? (
-          <AdminPanel
-            tasks={tasks}
-            employees={employees}
-            users={users}
-            onCreateUser={createUser}
-            onCreateTask={createTask}
-            onAddComment={(taskId, text) => addComment(taskId, text, "admin", "Administrador")}
-            onCancelTask={cancelTask}
-            onDeleteTask={deleteTask}
-            onRescheduleTask={rescheduleTask}
-            onDeleteUser={deleteUser}
-          />
-        ) : (
-          <EmployeePanel
-            currentEmployee={(session as { role: "employee"; employee: Employee }).employee}
-            tasks={tasks}
-            employees={employees}
-            onStartTask={(taskId) =>
-              startTask(taskId, (session as { role: "employee"; employee: Employee }).employee.name)
-            }
-            onPauseTask={(taskId) =>
-              pauseTask(taskId, (session as { role: "employee"; employee: Employee }).employee.name)
-            }
-            onCompleteTask={(taskId) =>
-              completeTask(taskId, (session as { role: "employee"; employee: Employee }).employee.name)
-            }
-            onAddComment={(taskId, text) =>
-              addComment(
-                taskId,
-                text,
-                (session as { role: "employee"; employee: Employee }).employee.id,
-                (session as { role: "employee"; employee: Employee }).employee.name
-              )
-            }
-          />
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {error && (
+          <div className="flex items-center gap-3 px-6 py-2 bg-red-500/10 border-b border-red-500/30">
+            <span className="text-xs text-red-400 flex-1">{error}</span>
+            <button
+              onClick={() => setError(null)}
+              className="text-xs text-red-400/70 hover:text-red-400 font-mono"
+            >
+              fechar
+            </button>
+          </div>
         )}
+
+        <div className="flex-1 overflow-hidden">
+          {isAdmin || !employee ? (
+            <AdminPanel
+              tasks={tasks}
+              employees={employees}
+              users={users}
+              onCreateUser={createUser}
+              onCreateTask={createTask}
+              onAddComment={addComment}
+              onCancelTask={cancelTask}
+              onDeleteTask={deleteTask}
+              onRescheduleTask={rescheduleTask}
+              onDeleteUser={deleteUser}
+            />
+          ) : (
+            <EmployeePanel
+              currentEmployee={employee}
+              tasks={tasks}
+              employees={employees}
+              onCreateTask={createTask}
+              onStartTask={startTask}
+              onPauseTask={pauseTask}
+              onCompleteTask={completeTask}
+              onAddComment={addComment}
+            />
+          )}
+        </div>
       </main>
     </div>
   );

@@ -1,0 +1,20 @@
+{
+  "name": "taskflow-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch --env-file=.env src/index.js",
+    "start": "node --env-file=.env src/index.js",
+    "db:setup": "node --env-file=.env scripts/setup-db.js",
+    "db:reset": "node --env-file=.env scripts/setup-db.js --reset",
+    "db:seed": "node --env-file=.env scripts/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3"
+  }
+}
